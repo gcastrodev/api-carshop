@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { CarsService } from "./cars.service.js";
-import { createCarSchema } from "./cars.schema.js";
+import { createCarSchema, searchRequestSchema } from "./cars.schema.js";
 
 export class CarsController{
     constructor(
@@ -11,5 +11,12 @@ export class CarsController{
         const result = await this.service.createCar(body);
 
         return reply.status(200).send(result);
-    }
+    };
+
+    searchCars = async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = searchRequestSchema.parse(request.body)
+        const result = await this.service.searchCars(body);
+
+        return reply.status(200).send(result);
+    };
 }

@@ -13,4 +13,16 @@ export const createCarSchema = z.object({
     imageUrl: z.string().trim().url().max(2048).optional(),
 });
 
+export const searchRequestSchema = z.object({
+    search: z.string().min(1),
+})
+
+export const filtersSchema = z.object({
+    brand: z.string().trim().min(1).optional(),
+    model: z.string().trim().min(1).optional(),
+    version: z.string().trim().min(1).max(120).optional(),
+})
+
+export type SearchCarsRequestInput = z.infer<typeof searchRequestSchema>;
 export type CreateCarInput = z.infer<typeof createCarSchema>;
+export type SearchFilters = z.infer<typeof filtersSchema>;
