@@ -10,13 +10,19 @@ const toolArgsSchema = z.object({
     marca: z.string().trim().min(1).optional(),
     nome: z.string().trim().min(1).optional(),
     versao: z.string().trim().min(1).optional(),
+    ano: z.number().int().min(1950).optional(),
+    ano_min: z.number().int().min(1950).optional(),
+    ano_max: z.number().int().min(1950).optional(),
+    quilometragem: z.number().int().min(0).optional(),
+    quilometragem_min: z.number().int().min(0).optional(),
+    quilometragem_max: z.number().int().min(0).optional(),
 });
 
 const BUSCAR_CARROS_TOOL = {
     type: "function" as const,
     function: {
         name: TOOL_NAME,
-        description: "Consulta o catálogo por critérios. Sempre preencha os campos que a pergunta deixar claro. `marca` = fabricante (BMW, Volkswagem, Fiat...). `nome` = modelo (GOL, T-Cross). `versao` = motor/trim citado (1.4, ConfortLine). Ex.: 'tem BMW?' => {\"marca\":\"BMW\"}. 'tem gol 1.4?' => {\"nome\":\"Gol\",\"versao\":\"1.4\"}. Use {} somente se não houver marca, modelo nem versão (ex.: 'mostre tudo', 'liste o catálogo').",
+        description: "Consulta o catálogo por critérios. Sempre preencha os campos explícitos na pergunta: `marca` (fabricante), `nome` (modelo), `versao` (motor/trim), `ano` (ano exato), `ano_min` (a partir de), `ano_max` (até), `quilometragem` (km exato), `quilometragem_min` (km mínimo), `quilometragem_max` (km máximo). Ex.: 'tem BMW 2020?' => {\"marca\":\"BMW\",\"ano\":2020}. 'a partir de 2021' => {\"ano_min\":2021}. 'até 50 mil km' => {\"quilometragem_max\":50000}. Use {} somente se não houver marca, modelo, versão, ano ou km.",
         parameters: {
             type: "object",
             additionalProperties: false,
@@ -32,6 +38,30 @@ const BUSCAR_CARROS_TOOL = {
                 versao: {
                     type: "string",
                     description: "Motor/trim citado (1.4, ConfortLine, M Sport...)"
+                },
+                ano: {
+                    type: "integer",
+                    description: "Ano exato do veículo (ex.: 2020)"
+                },
+                ano_min: {
+                    type: "integer",
+                    description: "Ano mínimo quando o usuário indicar 'a partir de', 'no mínimo'..."
+                },
+                ano_max: {
+                    type: "integer",
+                    description: "Ano máximo quando o usuário indicar 'até', 'no máximo'..."
+                },
+                quilometragem: {
+                    type: "integer",
+                    description: "Quilometragem exata em km (ex.: 50000)"
+                },
+                quilometragem_min: {
+                    type: "integer",
+                    description: "Quilometragem mínima quando o usuário indicar 'acima de', 'a partir de'..."
+                },
+                quilometragem_max: {
+                    type: "integer",
+                    description: "Quilometragem máxima quando o usuário indicar 'até', 'no máximo'..."
                 },
             },
         },
@@ -60,11 +90,28 @@ function toolJsonToFilters(raw: string): SearchFilters{
             return {}
         }
 
-        const { marca, versao, nome } = parsed.data;
+        const {
+            marca,
+            versao,
+            nome,
+            ano,
+            ano_min,
+            ano_max,
+            quilometragem,
+            quilometragem_min,
+            quilometragem_max,
+        } = parsed.data;
+
         return {
             ...(marca ? { brand: marca } : {} ),
             ...(versao ? { version: versao } : {} ),
             ...(nome ? { model: nome } : {} ),
+            ...(ano !== undefined ? { year: ano } : {} ),
+            ...(ano_min !== undefined ? { yearMin: ano_min } : {} ),
+            ...(ano_max !== undefined ? { yearMax: ano_max } : {} ),
+            ...(quilometragem !== undefined ? { mileage: quilometragem } : {} ),
+            ...(quilometragem_min !== undefined ? { mileageMin: quilometragem_min } : {} ),
+            ...(quilometragem_max !== undefined ? { mileageMax: quilometragem_max } : {} ),
         }
     }catch(err){
         return {}
@@ -89,7 +136,7 @@ export class AiSearchAgentService {
             messages: [
                 {
                     role: "system",
-                    content: "Assistente de catálogo de veículos (português). Chame buscar_carros exatamente uma vez. Preencha `marca` se o usuário citar fabricante (BMW, Volkswagem, Fiat...), mesmo em frases curtas como 'tem BMW?' ou 'vocês tem Audi?'. Preencha `nome` para modelo (GOL, Civic). Preencha `versão` se citar motor ou versão (1.4, TSI, Confortline, M Sport). Vários campos podem vir juntos. Só passe {} quando a mensagem não mencionar nenhuma marca, modelo nem versão (pergunta totalmente genérica sobre listar tudo)."
+                    content: "Assistente de catálogo de veículos (português). Chame buscar_carros exatamente uma vez. Preencha `marca` se o usuário citar fabricante (BMW, Volkswagem, Fiat...), `nome` para modelo (GOL, Civic), `versao` para motor/trim (1.4, TSI, Confortline, M Sport). Para ano e km, use campo exato quando o usuário der valor direto ('ano 2020', '50 mil km'), use `ano_min`/`quilometragem_min` para 'a partir de', 'acima de', 'no mínimo', e `ano_max`/`quilometragem_max` para 'até', 'no máximo'. Vários campos podem vir juntos. Só passe {} quando a mensagem não mencionar marca, modelo, versão, ano nem km."
                 },
                 {
                     role: "user",

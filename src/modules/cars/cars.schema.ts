@@ -21,7 +21,13 @@ export const filtersSchema = z.object({
     brand: z.string().trim().min(1).optional(),
     model: z.string().trim().min(1).optional(),
     version: z.string().trim().min(1).max(120).optional(),
-})
+    year: z.number().int().min(1950).optional(),
+    yearMin: z.number().int().min(1950).optional(),
+    yearMax: z.number().int().min(1950).optional(),
+    mileage: z.number().int().min(0).optional(),
+    mileageMin: z.number().int().min(0).optional(),
+    mileageMax: z.number().int().min(0).optional(),
+});
 
 export type SearchCarsRequestInput = z.infer<typeof searchRequestSchema>;
 export type CreateCarInput = z.infer<typeof createCarSchema>;

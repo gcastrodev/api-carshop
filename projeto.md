@@ -2,57 +2,44 @@
 
 ## Visao geral
 
-Este backend e uma API HTTP em Node.js + TypeScript, construída com Fastify e persistencia em PostgreSQL via Drizzle ORM.  
-Hoje, o projeto implementa um modulo de dominio principal (`cars`) com endpoint de criacao de carros e infraestrutura basica para inicializacao, configuracao por ambiente e acesso ao banco.
+Backend HTTP em Node.js + TypeScript com Fastify, Drizzle ORM e PostgreSQL.
 
-Arquitetura atual: **modular em camadas** (rota -> controller -> service -> repository -> banco).
+O projeto ja possui:
+- cadastro de carros;
+- busca semantica em linguagem natural (IA) para consultar o catalogo;
+- separacao por camadas no modulo `cars` (routes -> controller -> service -> repository).
 
 ---
 
 ## Stack e tecnologias
 
 - Runtime: `Node.js`
-- Linguagem: `TypeScript` (`module: nodenext`, `strict: true`)
-- Framework HTTP: `Fastify`
+- Linguagem: `TypeScript`
+- HTTP: `Fastify`
 - CORS: `@fastify/cors`
-- Validacao:
-  - `zod` para payloads de entrada
-  - `zod` para validar variaveis de ambiente
-- Banco de dados:
-  - `PostgreSQL` (driver `pg`)
-  - `drizzle-orm` para acesso tipado ao banco
-  - `drizzle-kit` para geracao/gestao de migracoes
-- Utilitarios:
-  - `dotenv` para carregar `.env`
-  - `tsx` para dev com hot reload
-
-Dependencia presente mas nao utilizada na implementacao atual:
-- `openai`
+- Validacao: `zod`
+- Banco: `PostgreSQL` + `pg` + `drizzle-orm`
+- Migracoes: `drizzle-kit`
+- IA (busca): `openai`
+- Ambiente: `dotenv`
+- Dev runtime: `tsx`
 
 ---
 
-## Estrutura de pastas (estado atual)
+## Estrutura principal
 
 ```text
 backend/
-  drizzle.config.ts
-  package.json
-  tsconfig.json
   src/
     app.ts
     server.ts
-    config/
-      env.ts
+    config/env.ts
     db/
       client.ts
-      migrations/
-        0000_silent_longshot.sql
-        meta/
-          0000_snapshot.json
-          _journal.json
       schema/
         cars.ts
         index.ts
+      migrations/
     modules/
       cars/
         cars.routes.ts
@@ -60,253 +47,140 @@ backend/
         cars.service.ts
         cars.repository.ts
         cars.schema.ts
+        search/
+          ai-search-agent.service.ts
+          search-query-builder.ts
 ```
 
 ---
 
-## Ciclo de inicializacao da aplicacao
+## Rotas do backend (estado atual)
 
-### 1) `src/server.ts` (entrypoint)
+### `GET /teste`
 
-- Importa `buildApp()` de `src/app.ts`.
-- Importa `env` de `src/config/env.ts`.
-- Cria a app e chama `app.listen({ port: env.PORT, host: "0.0.0.0" })`.
-- Em falha de boot, registra erro no logger do Fastify e encerra processo com `process.exit(1)`.
+Rota simples de health/check manual.
 
-Observacao:
-- O nome da funcao esta como `bootsctrap` (typo de `bootstrap`), mas funcionalmente nao quebra o fluxo.
+Resposta:
+- `status: true`
+- `message: "FUNCIONOOOU!"`
 
-### 2) `src/app.ts` (composicao da app)
+### `POST /cars`
 
-- Cria instancia Fastify com `logger: true`.
-- Registra CORS global: `origin: true` (aceita qualquer origem).
-- Exponibiliza rota utilitaria `GET /teste`.
-- Registra as rotas do modulo `cars` via `app.register(carsRoutes)`.
+Cria um carro no catalogo.
 
----
+Body validado por `createCarSchema`:
+- `brand` (string)
+- `model` (string)
+- `version` (string)
+- `year` (int >= 1950)
+- `price` (number > 0)
+- `fuel` (string)
+- `transmission` (string)
+- `mileage` (int >= 0)
+- `imageUrl` (url opcional)
 
-## Configuracao de ambiente e validacao
+Observacoes:
+- resposta atual com status `200`;
+- persistencia no PostgreSQL via Drizzle (`cars.repository.ts`).
 
-Arquivo: `src/config/env.ts`
+### `POST /cars/search`
 
-- Carrega variaveis com `import "dotenv/config"`.
-- Define schema Zod para o ambiente:
-  - `NODE_ENV`: `development | production | test`
-  - `PORT`: inteiro >= 1, com default `3333`
-  - `DATABASE_URL`: obrigatoria
-  - `OPENAI_API_KEY`: obrigatoria
-  - `OPENAI_MODEL`: obrigatoria
-- Executa `safeParse(process.env)`.
-- Se faltar/invalidar variavel, lanca erro imediato: `"TA FALTANDO VARIAVEL!"`.
+Busca carros a partir de texto livre (ex.: "tem gol 1.4?", "mostra BMW", "liste tudo").
 
-Impacto pratico:
-- A aplicacao nao inicia sem `OPENAI_*`, mesmo sem uso desses valores no codigo atual.
+Body validado por `searchRequestSchema`:
+- `search` (string obrigatoria)
 
----
-
-## Camada de dados e banco
-
-### Conexao (`src/db/client.ts`)
-
-- Cria `Pool` do `pg` com `connectionString: env.DATABASE_URL`.
-- Cria instancia `db` via `drizzle({ client: pool, schema })`.
-
-### Schemas Drizzle
-
-- `src/db/schema/cars.ts`: define tabela `cars` com colunas:
-  - `id` UUID PK com `defaultRandom()`
-  - `brand`, `model`, `year`, `price` obrigatorios
-  - `version`, `fuel`, `transmission`, `mileage`, `imageUrl` opcionais
-  - `createdAt` e `updatedAt` com `defaultNow()` e `notNull()`
-- `src/db/schema/index.ts`: re-exporta schemas (`export * from "./cars.js"`).
-
-### Migracoes
-
-- Configuracao em `drizzle.config.ts`:
-  - `schema: "./src/db/schema/index.ts"`
-  - `out: "./src/db/migrations"`
-  - `dialect: "postgresql"`
-- Migracao atual:
-  - `src/db/migrations/0000_silent_longshot.sql` cria tabela `cars`
-  - metadados em `src/db/migrations/meta/`
+Comportamento:
+1. `CarsService` envia o texto para `AiSearchAgentService`.
+2. A IA chama tool interna `buscar_carros` com argumentos estruturados (`marca`, `nome`, `versao`).
+3. Os argumentos sao convertidos em filtros de dominio (`brand`, `model`, `version`).
+4. O repositorio monta query dinamica com `ilike` e `and` (`search-query-builder.ts`).
+5. Retorno da rota:
+   - `items`: lista de carros encontrados;
+   - `reply`: frase natural em portugues baseada na quantidade de resultados.
 
 ---
 
-## Arquitetura do modulo `cars`
+## Funcionalidades do backend
 
-O projeto usa separacao de responsabilidades por camada:
+### 1) Inicializacao da aplicacao
 
-1. **Rota** (`cars.routes.ts`)  
-   Define endpoint HTTP e injeta dependencias.
+- `server.ts` cria a app (`buildApp`) e sobe com `host: "0.0.0.0"` e `port` do ambiente.
+- Em erro de boot, loga e encerra processo.
+- A funcao esta nomeada como `bootsctrap` (typo), mas funciona.
 
-2. **Controller** (`cars.controller.ts`)  
-   Recebe request/reply, valida entrada e formata resposta HTTP.
+### 2) Configuracao de ambiente
 
-3. **Service** (`cars.service.ts`)  
-   Camada de negocio (atualmente delega diretamente ao repositorio).
+`env.ts` valida com Zod as variaveis:
+- `NODE_ENV` (`development | production | test`)
+- `PORT`
+- `DATABASE_URL`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
 
-4. **Repository** (`cars.repository.ts`)  
-   Camada de persistencia com Drizzle e SQL tipado.
+Sem essas variaveis, a API nao inicia.
 
-5. **Schema de entrada** (`cars.schema.ts`)  
-   Contrato de validacao do payload de criacao (`createCarSchema`).
+### 3) Persistencia de carros
 
-### Endpoint implementado
+Tabela `cars` (`db/schema/cars.ts`) com campos:
+- identificacao: `id`
+- dados comerciais: `brand`, `model`, `version`, `year`, `price`
+- atributos: `fuel`, `transmission`, `mileage`, `imageUrl`
+- auditoria: `createdAt`, `updatedAt`
 
-- `POST /cars`
-  - Definido em `cars.routes.ts`
-  - Handler: `controller.createCar`
+No cadastro, o repositorio:
+- converte preco para 2 casas (`toFixed(2)`);
+- aplica fallback `imageUrl ?? ""`;
+- retorna o registro criado via `.returning()`.
 
-### Contrato de entrada (`createCarSchema`)
+### 4) Busca inteligente no catalogo
 
-Campos validados:
-- `brand`: string obrigatoria
-- `model`: string obrigatoria
-- `version`: string obrigatoria
-- `year`: inteiro >= 1950
-- `price`: numero positivo
-- `fuel`: string obrigatoria
-- `transmission`: string obrigatoria
-- `mileage`: inteiro >= 0
-- `imageUrl`: URL valida opcional (max 2048)
-
----
-
-## Fluxo completo de uma requisicao (`POST /cars`)
-
-1. Cliente envia requisicao para `POST /cars`.
-2. Fastify encaminha para rota em `cars.routes.ts`.
-3. `CarsController.createCar`:
-   - valida `request.body` com `createCarSchema.parse(...)`;
-   - chama `this.service.createCar(body)`.
-4. `CarsService.createCar` repassa para `CarsRepository.createCar`.
-5. `CarsRepository.createCar`:
-   - executa `insert` na tabela `cars`;
-   - formata preco com `toFixed(2)`;
-   - usa `imageUrl ?? ""` quando ausente;
-   - retorna a linha criada com `.returning()`;
-   - se nada retornar, lanca erro.
-6. Controller responde `reply.status(200).send(result)`.
-
-Observacoes de comportamento:
-- Para criacao, o codigo retorna `200` (convencionalmente APIs REST costumam usar `201`).
-- Erros de validacao (`zod`) e de banco sobem para o pipeline padrao de erro do Fastify.
+Funcionalidade nova no backend:
+- recebe pergunta em linguagem natural;
+- usa OpenAI para extrair filtros;
+- aplica filtros no banco com busca parcial case-insensitive (`ilike`);
+- devolve resposta amigavel para o usuario final.
 
 ---
 
-## Tratamento de erros
+## Fluxos principais
 
-Estado atual:
+### Fluxo de cadastro (`POST /cars`)
 
-- Existe tratamento de erro no bootstrap (`server.ts`) apenas para falha ao subir servidor.
-- Nao existe `setErrorHandler` global customizado em `app.ts`.
-- Nao ha padrao unico de erro de dominio (ex.: classes customizadas por tipo).
+1. Rota recebe request.
+2. Controller valida body com Zod.
+3. Service delega ao repository.
+4. Repository insere no banco.
+5. Controller retorna o item criado.
 
-Consequencia:
-- O formato de erro para validacoes e excecoes depende do padrao interno do Fastify/Zod, sem contrato centralizado definido pela aplicacao.
+### Fluxo de busca IA (`POST /cars/search`)
 
----
-
-## Seguranca
-
-Implementado:
-
-- CORS habilitado globalmente (`origin: true`).
-
-Nao identificado na base atual:
-
-- Autenticacao (JWT, session, API key, etc.)
-- Autorizacao (roles/permissoes)
-- Rate limiting
-- Headers de seguranca (`helmet`)
-- CSRF/cookies seguras
-- Criptografia de senha (bcrypt/argon2)
-
-Interpretacao:
-- O backend esta em estagio inicial e ainda nao possui camada de seguranca robusta para producao.
+1. Rota recebe texto de busca.
+2. Controller valida body.
+3. Service chama agente de IA.
+4. Agente transforma texto em filtros.
+5. Repository consulta banco com filtros dinamicos.
+6. Service retorna `items` + `reply`.
 
 ---
 
-## Scripts e execucao local
+## Scripts
 
-Scripts em `package.json`:
-
-- `npm run dev`: sobe servidor em watch (`tsx watch src/server.ts`)
-- `npm run build`: compila TypeScript (`tsc -p tsconfig.json`)
-
-Passos recomendados para rodar local:
-
-1. Instalar dependencias:
-   - `npm install`
-2. Criar `.env` com variaveis obrigatorias:
-   - `NODE_ENV`
-   - `PORT`
-   - `DATABASE_URL`
-   - `OPENAI_API_KEY`
-   - `OPENAI_MODEL`
-3. Garantir banco Postgres ativo e migracao aplicada.
-4. Iniciar app:
-   - `npm run dev`
-
-Observacao:
-- Nao ha script npm dedicado para migracao/seed no `package.json`; uso do Drizzle e manual no estado atual.
+- `npm run dev` -> `tsx watch src/server.ts`
+- `npm run build` -> `tsc -p tsconfig.json`
 
 ---
 
-## Testes e qualidade
+## Estado atual e proximos passos recomendados
 
-Nao foram encontrados:
+Pontos fortes:
+- arquitetura limpa por camadas;
+- validacao de entrada e ambiente;
+- integracao com IA para busca orientada por linguagem natural.
 
-- Arquivos de testes (`*.test.ts`, `*.spec.ts`)
-- Framework de teste configurado (`jest`, `vitest`, etc.)
-- Pipeline de testes automatizados
-
-Impacto:
-- Regressao de comportamento depende de teste manual.
-
----
-
-## Decisoes arquiteturais evidentes
-
-- **Separacao por modulo de dominio** (`src/modules/cars`)
-- **Camadas claras** (controller/service/repository)
-- **Validacao de entrada e ambiente com Zod**
-- **Persistencia isolada em repositorio**
-- **ORM tipado com Drizzle**
-
-Essas decisoes deixam uma base boa para escalar novos modulos seguindo o mesmo padrao.
-
----
-
-## Gaps tecnicos atuais (prioridade pratica)
-
-1. Falta de tratamento global de erros e padrao de resposta.
-2. Ausencia de autenticacao/autorizacao.
-3. Sem testes automatizados.
-4. Apenas um endpoint funcional (`POST /cars`).
-5. Variaveis `OPENAI_*` obrigatorias sem uso no dominio atual.
-6. Sem scripts de migracao/seed no ciclo principal de desenvolvimento.
-
----
-
-## Como evoluir mantendo o padrao existente
-
-Para crescer com consistencia, novos dominios devem repetir o mesmo desenho:
-
-- `src/modules/<dominio>/<dominio>.schema.ts`
-- `src/modules/<dominio>/<dominio>.repository.ts`
-- `src/modules/<dominio>/<dominio>.service.ts`
-- `src/modules/<dominio>/<dominio>.controller.ts`
-- `src/modules/<dominio>/<dominio>.routes.ts`
-
-E registrar no `src/app.ts` com `app.register(...)`.
-
-Essa abordagem preserva acoplamento baixo entre HTTP, regra de negocio e banco.
-
----
-
-## Resumo executivo
-
-O backend do CarShop esta funcional para cadastro de carros e possui fundacao arquitetural correta para evolucao: TypeScript estrito, Fastify, Zod, Drizzle e separacao por camadas.  
-No entanto, ainda esta em fase inicial, com cobertura funcional limitada e sem componentes de maturidade de producao (auth, testes, padrao de erro e seguranca reforcada).  
-Com a estrutura ja criada, a expansao para novos modulos e fluxos e direta, desde que os mesmos contratos e camadas sejam mantidos.
+Melhorias recomendadas:
+1. Padronizar respostas e tratamento global de erro.
+2. Retornar `201` em criacao de recurso (`POST /cars`).
+3. Adicionar autenticacao/autorizacao.
+4. Criar testes automatizados (unitario/integracao).
+5. Adicionar scripts de migracao/seed no ciclo de desenvolvimento.
