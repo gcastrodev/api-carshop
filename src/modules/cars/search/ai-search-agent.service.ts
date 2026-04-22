@@ -39,6 +39,19 @@ const BUSCAR_CARROS_TOOL = {
 } satisfies OpenAI.ChatCompletionTool
 
 
+function naturalReply(itemCount: number): string{
+    if(itemCount === 0){
+        return "Não encontrei nenhum veículo no nosso catálogo."
+    }
+
+    if(itemCount === 1){
+        return "Encontrei um veículo com essas características."
+    }
+
+    return `Encontrei ${itemCount} veículos no catálogo pra você.`
+}
+
+
 function toolJsonToFilters(raw: string): SearchFilters{
     try{
         const parsed = toolArgsSchema.safeParse(JSON.parse(raw) as unknown)
@@ -50,8 +63,8 @@ function toolJsonToFilters(raw: string): SearchFilters{
         const { marca, versao, nome } = parsed.data;
         return {
             ...(marca ? { brand: marca } : {} ),
-            ...(versao ? { brand: versao } : {} ),
-            ...(nome ? { brand: nome } : {} ),
+            ...(versao ? { version: versao } : {} ),
+            ...(nome ? { model: nome } : {} ),
         }
     }catch(err){
         return {}
@@ -69,7 +82,6 @@ export class AiSearchAgentService {
 
 
     async run(userMessage: string) {
-        console.log("MENSAGEM", userMessage);
 
         const completion = await this.client.chat.completions.create({
             model: env.OPENAI_MODEL as string,
@@ -98,8 +110,13 @@ export class AiSearchAgentService {
         const filters = call ? toolJsonToFilters(call.function.arguments ?? '{}') 
         : {};
 
-        console.log(filters);
 
-        return { ok: true };
+
+        const { items } = await this.repository.searchFilterCars({ filters })
+
+        return {
+            items,
+            reply: naturalReply(items.length),
+        };
     }
 } 
