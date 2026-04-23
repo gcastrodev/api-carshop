@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000 c6dcce0510a6327d7439a73ececd3a631fdcf731 Gabriel Castro <castrovisionario@icloud.com> 1776048224 -0300	commit (initial): git commit -m feat: initial project setup with fastify, typescript and drizzle
+c6dcce0510a6327d7439a73ececd3a631fdcf731 c6dcce0510a6327d7439a73ececd3a631fdcf731 Gabriel Castro <castrovisionario@icloud.com> 1776048251 -0300	Branch: renamed refs/heads/master to refs/heads/main
+c6dcce0510a6327d7439a73ececd3a631fdcf731 0aec2ce79abc7ddfc94c3769b061d2f9c0b347fd Gabriel Castro <castrovisionario@icloud.com> 1776053454 -0300	commit: feat: setup fastify server with zod env validation and cors
+0aec2ce79abc7ddfc94c3769b061d2f9c0b347fd c79bc790f6a0842f0ee97066372562231250dd0e Gabriel Castro <castrovisionario@icloud.com> 1776053751 -0300	commit: fix: remove node_modules from git tracking
+c79bc790f6a0842f0ee97066372562231250dd0e d5785f60b8209bef36e6406e264f0f9c5ed7dd9d Gabriel Castro <castrovisionario@icloud.com> 1776165496 -0300	commit: feat: setup database layer and env validation
+d5785f60b8209bef36e6406e264f0f9c5ed7dd9d 120457bf7bbaf8ba4602d9b35743b1cdb11430b4 Gabriel Castro <castrovisionario@icloud.com> 1776233080 -0300	commit: feat: implement cars module structure and database migrations
+120457bf7bbaf8ba4602d9b35743b1cdb11430b4 495c851133e805816790948cfe70e5942e1c701a Gabriel Castro <castrovisionario@icloud.com> 1776310417 -0300	commit: feat: implement car creation logic with controller, service and repositor
+495c851133e805816790948cfe70e5942e1c701a e2cc184c6da2166ca14d0cbfb804fc397ae3e0ad Gabriel Castro <castrovisionario@icloud.com> 1776397817 -0300	commit: feat: add car search functionality with AI agent and dynamic filter
+e2cc184c6da2166ca14d0cbfb804fc397ae3e0ad fb89ed6e3bea664f5cb3a317004d1fb96958ab6a Gabriel Castro <castrovisionario@icloud.com> 1776819835 -0300	commit: feat: wire AI search agent into /cars/search flow
+fb89ed6e3bea664f5cb3a317004d1fb96958ab6a 37afc4ab95ba0ff90953a5862cafc034891548ee Gabriel Castro <castrovisionario@icloud.com> 1776827077 -0300	commit: feat: implement AI catalog search results with filter mapping
+37afc4ab95ba0ff90953a5862cafc034891548ee d9f3feabfed701897507d6445603b5606bbf0b9a Gabriel Castro <castrovisionario@icloud.com> 1776829618 -0300	commit: feat: enhance AI car search with year and mileage filters and update docs
